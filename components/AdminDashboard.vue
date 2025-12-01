@@ -84,7 +84,7 @@
               v-for="estimate in filteredEstimates"
               :key="estimate.id"
               class="border-2 border-gray-200 rounded-xl p-6 hover:border-indigo-300 transition-all cursor-pointer"
-              @click="selectedEstimate = estimate"
+              @click="viewEstimateDetail(estimate)"
             >
               <div class="flex items-start justify-between">
                 <div class="flex-1">
@@ -213,6 +213,35 @@
                   </div>
                 </div>
 
+                <!-- Attachments -->
+                <div>
+                  <label class="text-sm font-semibold text-gray-600 mb-3 block">첨부파일</label>
+                  <div v-if="selectedAttachments && selectedAttachments.length > 0" class="space-y-2">
+                    <div
+                      v-for="attachment in selectedAttachments"
+                      :key="attachment.id"
+                      class="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors"
+                    >
+                      <div class="flex items-center gap-3">
+                        <span class="text-2xl">{{ getFileIcon(attachment.fileType) }}</span>
+                        <div>
+                          <p class="font-medium text-gray-800">{{ attachment.fileName }}</p>
+                          <p class="text-xs text-gray-500">{{ formatFileSize(attachment.fileSize) }}</p>
+                        </div>
+                      </div>
+                      <button
+                        @click="handleDownload(attachment)"
+                        class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium"
+                      >
+                        다운로드
+                      </button>
+                    </div>
+                  </div>
+                  <div v-else class="p-4 bg-gray-50 rounded-lg border border-gray-200 text-center text-gray-500">
+                    첨부파일이 없습니다.
+                  </div>
+                </div>
+
                 <div class="pt-4 border-t">
                   <label class="text-sm font-semibold text-gray-600">제출 일시</label>
                   <p class="text-lg text-gray-800">{{ formatDate(selectedEstimate.createdAt) }}</p>
@@ -229,7 +258,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { fetchEstimates, updateEstimate } from '../services/EstimateService.js';
+import { fetchEstimates, updateEstimate, getEstimateAttachments, downloadAttachment } from '../services/EstimateService.js';
 
 const router = useRouter();
 const activeTab = ref('estimates');
@@ -237,6 +266,7 @@ const loading = ref(false);
 const estimates = ref([]);
 const statusFilter = ref('all');
 const selectedEstimate = ref(null);
+const selectedAttachments = ref([]);
 const showAddPortfolio = ref(false);
 const adminUser = ref(null);
 
@@ -342,6 +372,35 @@ const updateStatus = async (id, newStatus) => {
   } catch (error) {
     console.error('견적 상태 업데이트 실패:', error);
     alert('상태 업데이트에 실패했습니다.');
+  }
+};
+
+const viewEstimateDetail = async (estimate) => {
+  selectedEstimate.value = estimate;
+  selectedAttachments.value = [];
+  
+  // Load attachments for the selected estimate
+  if (estimate && estimate.id) {
+    try {
+      console.log('첨부파일 조회 시작, estimateId:', estimate.id);
+      const attachments = await getEstimateAttachments(estimate.id);
+      console.log('첨부파일 조회 결과:', attachments);
+      selectedAttachments.value = attachments || [];
+    } catch (err) {
+      console.error('첨부파일 조회 실패:', err);
+      selectedAttachments.value = [];
+    }
+  } else {
+    console.warn('견적 ID가 없습니다:', estimate);
+  }
+};
+
+const handleDownload = async (attachment) => {
+  try {
+    await downloadAttachment(attachment.id, attachment.fileName);
+  } catch (error) {
+    console.error('파일 다운로드 오류:', error);
+    alert('파일 다운로드 중 오류가 발생했습니다.');
   }
 };
 

@@ -261,6 +261,35 @@
             <span class="text-3xl font-bold text-indigo-600">{{ formatPrice(estimate.estimatedPrice) }}원</span>
           </div>
         </div>
+
+        <!-- Attachments -->
+        <div>
+          <label class="text-sm font-semibold text-gray-600 mb-3 block">첨부파일</label>
+          <div v-if="attachments && attachments.length > 0" class="space-y-2">
+            <div
+              v-for="attachment in attachments"
+              :key="attachment.id"
+              class="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors"
+            >
+              <div class="flex items-center gap-3">
+                <span class="text-2xl">{{ getFileIcon(attachment.fileType) }}</span>
+                <div>
+                  <p class="font-medium text-gray-800">{{ attachment.fileName }}</p>
+                  <p class="text-xs text-gray-500">{{ formatFileSize(attachment.fileSize) }}</p>
+                </div>
+              </div>
+              <button
+                @click="handleDownload(attachment)"
+                class="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors text-sm font-medium"
+              >
+                다운로드
+              </button>
+            </div>
+          </div>
+          <div v-else class="p-4 bg-gray-50 rounded-lg border border-gray-200 text-center text-gray-500">
+            첨부파일이 없습니다.
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -268,12 +297,13 @@
 
 <script setup>
 import { ref, reactive } from 'vue';
-import { inquiryEstimateByIndividual, inquiryEstimateByCompany } from '../services/EstimateService.js';
+import { inquiryEstimateByIndividual, inquiryEstimateByCompany, getEstimateAttachments, downloadAttachment } from '../services/EstimateService.js';
 
 const customerType = ref('individual');
 const loading = ref(false);
 const estimate = ref(null);
 const errorMessage = ref('');
+const attachments = ref([]);
 
 const inquiryData = reactive({
   name: '',
@@ -340,9 +370,26 @@ const handleInquiry = async () => {
         inquiryData.phone
       );
     }
+    
+    // 첨부파일 조회
+    if (estimate.value && estimate.value.id) {
+      try {
+        console.log('견적 조회 페이지 - 첨부파일 조회 시작, estimateId:', estimate.value.id);
+        const fetchedAttachments = await getEstimateAttachments(estimate.value.id);
+        console.log('견적 조회 페이지 - 첨부파일 조회 결과:', fetchedAttachments);
+        attachments.value = fetchedAttachments || [];
+      } catch (err) {
+        console.error('견적 조회 페이지 - 첨부파일 조회 실패:', err);
+        attachments.value = [];
+      }
+    } else {
+      console.warn('견적 조회 페이지 - estimateId가 없습니다:', estimate.value);
+      attachments.value = [];
+    }
   } catch (error) {
     errorMessage.value = error.message || '견적 조회 중 오류가 발생했습니다.';
     estimate.value = null;
+    attachments.value = [];
   } finally {
     loading.value = false;
   }
@@ -351,10 +398,37 @@ const handleInquiry = async () => {
 const resetInquiry = () => {
   estimate.value = null;
   errorMessage.value = '';
+  attachments.value = [];
   inquiryData.name = '';
   inquiryData.companyName = '';
   inquiryData.email = '';
   inquiryData.phone = '';
+};
+
+const getFileIcon = (fileType) => {
+  if (!fileType) return '📎';
+  if (fileType.startsWith('image/')) return '🖼️';
+  if (fileType === 'application/pdf') return '📄';
+  if (fileType.includes('word') || fileType.includes('document')) return '📝';
+  if (fileType.includes('excel') || fileType.includes('spreadsheet')) return '📊';
+  return '📎';
+};
+
+const formatFileSize = (bytes) => {
+  if (!bytes) return '0 Bytes';
+  const k = 1024;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+};
+
+const handleDownload = async (attachment) => {
+  try {
+    await downloadAttachment(attachment.id, attachment.fileName);
+  } catch (error) {
+    console.error('파일 다운로드 오류:', error);
+    alert('파일 다운로드 중 오류가 발생했습니다.');
+  }
 };
 </script>
 
